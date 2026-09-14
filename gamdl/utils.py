@@ -2,9 +2,10 @@ import asyncio
 import string
 import typing
 
-# Whole-track cap for external download processes so a stalled child cannot
-# hang the run forever.
-DOWNLOAD_TIMEOUT_SECONDS = 600
+# Whole-track cap for external download processes so a wedged child cannot
+# hang the run forever. Generous on purpose: it bounds total transfer time,
+# including slow links and long lossless tracks, not just stalls.
+DOWNLOAD_TIMEOUT_SECONDS = 1800
 
 
 async def async_subprocess(
