@@ -2,8 +2,16 @@ import asyncio
 import string
 import typing
 
+# Whole-track cap for external download processes so a stalled child cannot
+# hang the run forever.
+DOWNLOAD_TIMEOUT_SECONDS = 600
 
-async def async_subprocess(*args: str, silent: bool = False) -> None:
+
+async def async_subprocess(
+    *args: str,
+    silent: bool = False,
+    timeout: float | None = DOWNLOAD_TIMEOUT_SECONDS,
+) -> None:
     if silent:
         additional_args = {
             "stdout": asyncio.subprocess.PIPE,
@@ -17,7 +25,14 @@ async def async_subprocess(*args: str, silent: bool = False) -> None:
         **additional_args,
     )
 
-    stdout, stderr = await proc.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        raise RuntimeError(
+            f"Timed out after {timeout} seconds: {' '.join(str(arg) for arg in args)}"
+        ) from None
 
     if proc.returncode != 0:
         msg = (

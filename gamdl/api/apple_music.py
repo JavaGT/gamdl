@@ -194,6 +194,12 @@ class AppleMusicApi:
                     total=6,
                     backoff_factor=1,
                     status_forcelist=[429, 500, 502, 503, 504],
+                    # The only POSTs on this client are the rewindable JSON
+                    # webplayback and license-exchange fetches, which hard-fail
+                    # tracks on 429/5xx without this.
+                    allowed_methods=frozenset(
+                        {"GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"}
+                    ),
                 )
             ),
         )

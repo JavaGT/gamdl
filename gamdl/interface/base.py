@@ -7,6 +7,7 @@ from io import BytesIO
 import httpx
 import structlog
 from async_lru import alru_cache
+from httpx_retries import Retry, RetryTransport
 from PIL import Image
 from pywidevine import PSSH, Cdm, Device
 from pywidevine.license_protocol_pb2 import WidevinePsshData
@@ -21,6 +22,14 @@ from .enums import CoverFormat
 from .types import Cover, DecryptionKey, MediaRating, MediaTags, MediaType, PlaylistTags
 
 logger = structlog.get_logger(__name__)
+
+# Manifest and cover fetches build ad-hoc clients; without a retry policy a
+# transient 429/5xx fails the whole track.
+_HTTP_RETRY = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
 
 
 class AppleMusicBaseInterface:
@@ -90,7 +99,10 @@ class AppleMusicBaseInterface:
         url: str,
         valid_responses: list[int] = [200],
     ) -> httpx.Response:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(
+            timeout=60.0,
+            transport=RetryTransport(retry=_HTTP_RETRY),
+        ) as client:
             try:
                 response = await client.get(url)
                 response.raise_for_status()
@@ -205,7 +217,10 @@ class AppleMusicBaseInterface:
     async def get_cover_bytes(self, cover_url: str) -> bytes | None:
         log = logger.bind(action="get_cover_bytes", cover_url=cover_url)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            transport=RetryTransport(retry=_HTTP_RETRY),
+        ) as client:
             response = await client.get(cover_url, follow_redirects=True)
 
             if response.status_code == 404:
