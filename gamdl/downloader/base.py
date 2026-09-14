@@ -15,7 +15,11 @@ from yt_dlp.downloader.http import HttpFD
 from ..interface.enums import CoverFormat
 from ..interface.interface import AppleMusicInterface
 from ..interface.types import MediaTags, PlaylistTags
-from ..utils import CustomStringFormatter, async_subprocess
+from ..utils import (
+    DOWNLOAD_TIMEOUT_SECONDS,
+    CustomStringFormatter,
+    async_subprocess,
+)
 from .constants import ILLEGAL_CHAR_REPLACEMENT, ILLEGAL_CHARS_RE, TEMP_PATH_TEMPLATE
 from .enums import DownloadMode
 
@@ -278,8 +282,13 @@ class AppleMusicBaseDownloader:
         )
         process.start()
 
+        deadline = asyncio.get_running_loop().time() + DOWNLOAD_TIMEOUT_SECONDS
         try:
             while process.is_alive():
+                if asyncio.get_running_loop().time() > deadline:
+                    raise RuntimeError(
+                        f"yt-dlp timed out after {DOWNLOAD_TIMEOUT_SECONDS} seconds"
+                    )
                 await asyncio.sleep(0.1)
 
             process.join()
