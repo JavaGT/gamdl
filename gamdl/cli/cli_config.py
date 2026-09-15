@@ -245,7 +245,7 @@ class CliConfig:
             type=SyncedLyricsFormat,
         ),
     ]
-    song_codec_piority: Annotated[
+    song_codec_priority: Annotated[
         list[SongCodec],
         option(
             "--song-codec-priority",

@@ -5,10 +5,19 @@ from pathlib import Path
 
 import click
 import click.types as click_types
+import structlog
 
 from .cli_config import CliConfig
 from .constants import EXCLUDED_CONFIG_FILE_PARAMS
 from .utils import Csv
+
+logger = structlog.get_logger(__name__)
+
+# Old config key -> renamed key. The value under the old key is applied once
+# and written back under the new key, with a warning to update the config.
+RENAMED_PARAMS = {
+    "song_codec_piority": "song_codec_priority",
+}
 
 
 class ConfigFile:
@@ -111,16 +120,40 @@ class ConfigFile:
         if has_changes:
             self._write_config_file()
 
+    def _apply_renamed_params(self) -> None:
+        for old_name, new_name in RENAMED_PARAMS.items():
+            if not self.config.has_option(self.section_name, old_name):
+                continue
+
+            warning = (
+                f"Config option '{old_name}' was renamed to '{new_name}', "
+                "update your config file"
+            )
+            if not self.config.has_option(self.section_name, new_name):
+                value = self.config[self.section_name].get(old_name)
+                self.config.set(self.section_name, new_name, value)
+                logger.warning(warning)
+            else:
+                logger.warning(
+                    f"{warning}, keeping the '{new_name}' value"
+                )
+
+            self.config.remove_option(self.section_name, old_name)
+            self._write_config_file()
+
     def cleanup_unknown_params(self) -> None:
         param_names = {info.name for info in self.click_context.command.params}
-        has_changes = False
 
-        for key in list(self.config[self.section_name].keys()):
-            if key not in param_names:
-                self.config.remove_option(self.section_name, key)
-                has_changes = True
+        unknown_keys = [
+            key
+            for key in self.config[self.section_name].keys()
+            if key not in param_names
+        ]
+        for key in unknown_keys:
+            logger.warning(f"Unknown config option '{key}', removing it")
+            self.config.remove_option(self.section_name, key)
 
-        if has_changes:
+        if unknown_keys:
             self._write_config_file()
 
     def update_params_from_config(self) -> None:
@@ -148,6 +181,7 @@ class ConfigFile:
         return CliConfig(**config_dict)
 
     def load(self) -> CliConfig:
+        self._apply_renamed_params()
         self.cleanup_unknown_params()
         self.add_params_default_to_config()
         self.update_params_from_config()

@@ -138,7 +138,7 @@ async def main(config: CliConfig):
             " downloadable"
         )
 
-    if SongCodec.ALAC in config.song_codec_piority and not config.use_wrapper:
+    if SongCodec.ALAC in config.song_codec_priority and not config.use_wrapper:
         logger.warning(
             "You have chosen ALAC without enabling wrapper. "
             "ALAC may be attempted without wrapper, but it probably won't work due "
@@ -164,7 +164,7 @@ async def main(config: CliConfig):
         song_interface = AppleMusicSongInterface(
             base=base_interface,
             synced_lyrics_format=config.synced_lyrics_format,
-            codec_priority=config.song_codec_piority,
+            codec_priority=config.song_codec_priority,
             use_album_date=config.use_album_date,
             skip_stream_info=config.synced_lyrics_only,
             ask_codec_function=interactive_prompts.ask_song_codec,
