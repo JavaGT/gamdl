@@ -134,173 +134,177 @@ async def main(config: CliConfig):
         database = None
         flat_filter = None
 
-    base_interface = await AppleMusicBaseInterface.create(
-        apple_music_api=apple_music_api,
-        cover_format=config.cover_format,
-        cover_size=config.cover_size,
-        wvd_path=config.wvd_path,
-        wrapper_api=wrapper_api,
-    )
+    try:
+        base_interface = await AppleMusicBaseInterface.create(
+            apple_music_api=apple_music_api,
+            cover_format=config.cover_format,
+            cover_size=config.cover_size,
+            wvd_path=config.wvd_path,
+            wrapper_api=wrapper_api,
+        )
 
-    song_interface = AppleMusicSongInterface(
-        base=base_interface,
-        synced_lyrics_format=config.synced_lyrics_format,
-        codec_priority=config.song_codec_piority,
-        use_album_date=config.use_album_date,
-        skip_stream_info=config.synced_lyrics_only,
-        ask_codec_function=interactive_prompts.ask_song_codec,
-    )
-    music_video_interface = AppleMusicMusicVideoInterface(
-        base=base_interface,
-        resolution=config.music_video_resolution,
-        codec_priority=config.music_video_codec_priority,
-        ask_video_codec_function=interactive_prompts.ask_music_video_video_codec_function,
-        ask_audio_codec_function=interactive_prompts.ask_music_video_audio_codec_function,
-    )
-    uploaded_video_interface = AppleMusicUploadedVideoInterface(
-        base=base_interface,
-        quality=config.uploaded_video_quality,
-        ask_quality_function=interactive_prompts.ask_uploaded_video_quality_function,
-    )
+        song_interface = AppleMusicSongInterface(
+            base=base_interface,
+            synced_lyrics_format=config.synced_lyrics_format,
+            codec_priority=config.song_codec_piority,
+            use_album_date=config.use_album_date,
+            skip_stream_info=config.synced_lyrics_only,
+            ask_codec_function=interactive_prompts.ask_song_codec,
+        )
+        music_video_interface = AppleMusicMusicVideoInterface(
+            base=base_interface,
+            resolution=config.music_video_resolution,
+            codec_priority=config.music_video_codec_priority,
+            ask_video_codec_function=interactive_prompts.ask_music_video_video_codec_function,
+            ask_audio_codec_function=interactive_prompts.ask_music_video_audio_codec_function,
+        )
+        uploaded_video_interface = AppleMusicUploadedVideoInterface(
+            base=base_interface,
+            quality=config.uploaded_video_quality,
+            ask_quality_function=interactive_prompts.ask_uploaded_video_quality_function,
+        )
 
-    interface = AppleMusicInterface(
-        song=song_interface,
-        music_video=music_video_interface,
-        uploaded_video=uploaded_video_interface,
-        artist_select_media_type_function=interactive_prompts.ask_artist_media_type,
-        artist_select_items_function=interactive_prompts.ask_artist_select_items,
-        flat_filter_function=flat_filter,
-    )
+        interface = AppleMusicInterface(
+            song=song_interface,
+            music_video=music_video_interface,
+            uploaded_video=uploaded_video_interface,
+            artist_select_media_type_function=interactive_prompts.ask_artist_media_type,
+            artist_select_items_function=interactive_prompts.ask_artist_select_items,
+            flat_filter_function=flat_filter,
+        )
 
-    base_downloader = AppleMusicBaseDownloader(
-        interface=interface,
-        output_path=config.output_path,
-        temp_path=config.temp_path,
-        nm3u8dlre_path=config.nm3u8dlre_path,
-        ffmpeg_path=config.ffmpeg_path,
-        download_mode=config.download_mode,
-        album_folder_template=config.album_folder_template,
-        compilation_folder_template=config.compilation_folder_template,
-        no_album_folder_template=config.no_album_folder_template,
-        playlist_folder_template=config.playlist_folder_template,
-        single_disc_file_template=config.single_disc_file_template,
-        multi_disc_file_template=config.multi_disc_file_template,
-        no_album_file_template=config.no_album_file_template,
-        playlist_file_template=config.playlist_file_template,
-        date_tag_template=config.date_tag_template,
-        exclude_tags=config.exclude_tags,
-        truncate=config.truncate,
-    )
+        base_downloader = AppleMusicBaseDownloader(
+            interface=interface,
+            output_path=config.output_path,
+            temp_path=config.temp_path,
+            nm3u8dlre_path=config.nm3u8dlre_path,
+            ffmpeg_path=config.ffmpeg_path,
+            download_mode=config.download_mode,
+            album_folder_template=config.album_folder_template,
+            compilation_folder_template=config.compilation_folder_template,
+            no_album_folder_template=config.no_album_folder_template,
+            playlist_folder_template=config.playlist_folder_template,
+            single_disc_file_template=config.single_disc_file_template,
+            multi_disc_file_template=config.multi_disc_file_template,
+            no_album_file_template=config.no_album_file_template,
+            playlist_file_template=config.playlist_file_template,
+            date_tag_template=config.date_tag_template,
+            exclude_tags=config.exclude_tags,
+            truncate=config.truncate,
+        )
 
-    song_downloader = AppleMusicSongDownloader(
-        base=base_downloader,
-    )
-    music_video_downloader = AppleMusicMusicVideoDownloader(
-        base=base_downloader,
-        remux_format=config.music_video_remux_format,
-    )
-    uploaded_video_downloader = AppleMusicUploadedVideoDownloader(
-        base=base_downloader,
-    )
+        song_downloader = AppleMusicSongDownloader(
+            base=base_downloader,
+        )
+        music_video_downloader = AppleMusicMusicVideoDownloader(
+            base=base_downloader,
+            remux_format=config.music_video_remux_format,
+        )
+        uploaded_video_downloader = AppleMusicUploadedVideoDownloader(
+            base=base_downloader,
+        )
 
-    downloader = AppleMusicDownloader(
-        song=song_downloader,
-        music_video=music_video_downloader,
-        uploaded_video=uploaded_video_downloader,
-        overwrite=config.overwrite,
-        save_cover=config.save_cover,
-        save_playlist=config.save_playlist,
-        no_synced_lyrics=config.no_synced_lyrics,
-        synced_lyrics_only=config.synced_lyrics_only,
-    )
+        downloader = AppleMusicDownloader(
+            song=song_downloader,
+            music_video=music_video_downloader,
+            uploaded_video=uploaded_video_downloader,
+            overwrite=config.overwrite,
+            save_cover=config.save_cover,
+            save_playlist=config.save_playlist,
+            no_synced_lyrics=config.no_synced_lyrics,
+            synced_lyrics_only=config.synced_lyrics_only,
+        )
 
-    if config.read_urls_as_txt:
-        urls_from_file = []
-        for url in config.urls:
-            if Path(url).is_file() and Path(url).exists():
-                urls_from_file.extend(
-                    [
-                        line.strip()
-                        for line in Path(url).read_text(encoding="utf-8").splitlines()
-                        if line.strip()
-                    ]
-                )
-        urls = urls_from_file
-    else:
-        urls = config.urls
-
-    error_count = 0
-    for url_index, url in enumerate(urls, 1):
-        url_log = logger.bind(action=f"URL {url_index:>3}/{len(urls):<3}")
-
-        url_log.info(f'Processing "{url}"')
-
-        try:
-            async for download_item in downloader.get_download_item_from_url(url):
-                media_index = download_item.media.index + 1
-                media_total = download_item.media.total or "-"
-
-                track_log = logger.bind(
-                    action=f"Track {media_index:>3}/{media_total:<3}"
-                )
-
-                media_title = (
-                    download_item.media.media_metadata["attributes"]["name"]
-                    if download_item.media.media_metadata
-                    and download_item.media.media_metadata.get("attributes", {}).get(
-                        "name"
+        if config.read_urls_as_txt:
+            urls_from_file = []
+            for url in config.urls:
+                if Path(url).is_file() and Path(url).exists():
+                    urls_from_file.extend(
+                        [
+                            line.strip()
+                            for line in Path(url).read_text(encoding="utf-8").splitlines()
+                            if line.strip()
+                        ]
                     )
-                    else "Unknown Title"
-                )
-                media_type = (
-                    download_item.media.media_metadata["type"]
-                    if download_item.media.media_metadata
-                    else None
-                )
+            urls = urls_from_file
+        else:
+            urls = config.urls
 
-                if download_item.media.partial and media_type in {
-                    None,
-                    "songs",
-                    "library-songs",
-                    "music-videos",
-                    "library-music-videos",
-                    "uploaded-videos",
-                }:
-                    track_log.info(f'Downloading "{media_title}"')
+        error_count = 0
+        for url_index, url in enumerate(urls, 1):
+            url_log = logger.bind(action=f"URL {url_index:>3}/{len(urls):<3}")
 
-                try:
-                    await downloader.download(download_item)
-                except (
-                    GamdlInterfaceMediaNotStreamableError,
-                    GamdlInterfaceFormatNotAvailableError,
-                    GamdlInterfaceDecryptionNotAvailableError,
-                    GamdlInterfaceArtistMediaTypeError,
-                    GamdlDownloaderSyncedLyricsOnlyError,
-                    GamdlDownloaderMediaFileExistsError,
-                    GamdlDownloaderDependencyNotFoundError,
-                    GamdlInterfaceFlatFilterExcludedError,
-                ) as e:
-                    track_log.warning(f'Skipping "{media_title}": {e}')
-                    continue
-                except Exception as e:
-                    error_count += 1
-                    track_log.exception(f'Error downloading "{media_title}"')
+            url_log.info(f'Processing "{url}"')
 
-                if (
-                    database
-                    and download_item.media.media_metadata
-                    and download_item.final_path
-                ):
-                    database.add(
-                        download_item.media.media_metadata["id"],
-                        download_item.final_path,
+            try:
+                async for download_item in downloader.get_download_item_from_url(url):
+                    media_index = download_item.media.index + 1
+                    media_total = download_item.media.total or "-"
+
+                    track_log = logger.bind(
+                        action=f"Track {media_index:>3}/{media_total:<3}"
                     )
-        except GamdlInterfaceUrlParseError as e:
-            url_log.error(f"{e}")
-            continue
-        except Exception as e:
-            url_log.exception(f'Error processing "{url}": {e}')
-            error_count += 1
-            continue
 
-    logger.info(f"Finished with {error_count} error(s)")
+                    media_title = (
+                        download_item.media.media_metadata["attributes"]["name"]
+                        if download_item.media.media_metadata
+                        and download_item.media.media_metadata.get("attributes", {}).get(
+                            "name"
+                        )
+                        else "Unknown Title"
+                    )
+                    media_type = (
+                        download_item.media.media_metadata["type"]
+                        if download_item.media.media_metadata
+                        else None
+                    )
+
+                    if download_item.media.partial and media_type in {
+                        None,
+                        "songs",
+                        "library-songs",
+                        "music-videos",
+                        "library-music-videos",
+                        "uploaded-videos",
+                    }:
+                        track_log.info(f'Downloading "{media_title}"')
+
+                    try:
+                        await downloader.download(download_item)
+                    except (
+                        GamdlInterfaceMediaNotStreamableError,
+                        GamdlInterfaceFormatNotAvailableError,
+                        GamdlInterfaceDecryptionNotAvailableError,
+                        GamdlInterfaceArtistMediaTypeError,
+                        GamdlDownloaderSyncedLyricsOnlyError,
+                        GamdlDownloaderMediaFileExistsError,
+                        GamdlDownloaderDependencyNotFoundError,
+                        GamdlInterfaceFlatFilterExcludedError,
+                    ) as e:
+                        track_log.warning(f'Skipping "{media_title}": {e}')
+                        continue
+                    except Exception as e:
+                        error_count += 1
+                        track_log.exception(f'Error downloading "{media_title}"')
+
+                    if (
+                        database
+                        and download_item.media.media_metadata
+                        and download_item.final_path
+                    ):
+                        database.add(
+                            download_item.media.media_metadata["id"],
+                            download_item.final_path,
+                        )
+            except GamdlInterfaceUrlParseError as e:
+                url_log.error(f"{e}")
+                continue
+            except Exception as e:
+                url_log.exception(f'Error processing "{url}": {e}')
+                error_count += 1
+                continue
+
+        logger.info(f"Finished with {error_count} error(s)")
+    finally:
+        if database:
+            database.close()
