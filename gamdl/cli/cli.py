@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 import sys
 from functools import wraps
 from pathlib import Path
@@ -47,13 +48,15 @@ from .utils import CustomOutputWriter, custom_structlog_formatter, prompt_path
 logger = structlog.get_logger(__name__)
 
 # Errors that are expected during setup: API/network failures, unreadable or
-# malformed cookies/.wvd files, and invalid option values. Anything else is a
-# bug and still gets a full traceback.
+# malformed cookies/.wvd files (pywidevine's Device.load raises ValueError for
+# invalid device data), and unusable SQLite databases. Anything else is a bug
+# and still gets a full traceback.
 EXPECTED_SETUP_ERRORS = (
     ConstructError,
     GamdlApiResponseError,
     httpx.HTTPError,
     OSError,
+    sqlite3.Error,
     ValueError,
 )
 
@@ -91,6 +94,10 @@ async def main(config: CliConfig):
         wrapper_class=structlog.make_filtering_bound_logger(config.log_level),
     )
 
+    for warning in ConfigFile.pending_warnings:
+        logger.warning(warning)
+    ConfigFile.pending_warnings.clear()
+
     logger.info(f"Starting Gamdl {__version__}")
 
     interactive_prompts = InteractivePrompts(
@@ -110,8 +117,8 @@ async def main(config: CliConfig):
                 wrapper_api=wrapper_api,
                 language=config.language,
             )
-        except Exception as e:
-            logger.exception(f"Error: {e}")
+        except EXPECTED_SETUP_ERRORS as e:
+            logger.error(f"Error: {e}")
             sys.exit(1)
     else:
         try:
@@ -145,14 +152,14 @@ async def main(config: CliConfig):
             "to API limitations."
         )
 
-    if config.database_path:
-        database = Database(config.database_path, config.overwrite)
-        flat_filter = database.flat_filter
-    else:
-        database = None
-        flat_filter = None
-
     try:
+        if config.database_path:
+            database = Database(config.database_path, config.overwrite)
+            flat_filter = database.flat_filter
+        else:
+            database = None
+            flat_filter = None
+
         base_interface = await AppleMusicBaseInterface.create(
             apple_music_api=apple_music_api,
             cover_format=config.cover_format,

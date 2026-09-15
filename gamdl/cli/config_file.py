@@ -5,13 +5,10 @@ from pathlib import Path
 
 import click
 import click.types as click_types
-import structlog
 
 from .cli_config import CliConfig
 from .constants import EXCLUDED_CONFIG_FILE_PARAMS
 from .utils import Csv
-
-logger = structlog.get_logger(__name__)
 
 # Old config key -> renamed key. The value under the old key is applied once
 # and written back under the new key, with a warning to update the config.
@@ -21,6 +18,10 @@ RENAMED_PARAMS = {
 
 
 class ConfigFile:
+    # Warnings collected while loading the config file, emitted by the CLI
+    # once logging is configured.
+    pending_warnings: list[str] = []
+
     def __init__(
         self,
         config_path: str,
@@ -44,8 +45,14 @@ class ConfigFile:
             self.config.add_section(self.section_name)
 
     def _write_config_file(self) -> None:
-        with open(self.config_path, "w", encoding="utf-8") as config_file:
-            self.config.write(config_file)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as config_file:
+                self.config.write(config_file)
+        except OSError as e:
+            self._warn(f"Could not write config file '{self.config_path}': {e}")
+
+    def _warn(self, message: str) -> None:
+        ConfigFile.pending_warnings.append(message)
 
     def _serialize_param_default(self, param: click.Parameter) -> str:
         if param.default is None:
@@ -121,6 +128,7 @@ class ConfigFile:
             self._write_config_file()
 
     def _apply_renamed_params(self) -> None:
+        has_changes = False
         for old_name, new_name in RENAMED_PARAMS.items():
             if not self.config.has_option(self.section_name, old_name):
                 continue
@@ -132,13 +140,14 @@ class ConfigFile:
             if not self.config.has_option(self.section_name, new_name):
                 value = self.config[self.section_name].get(old_name)
                 self.config.set(self.section_name, new_name, value)
-                logger.warning(warning)
+                self._warn(warning)
             else:
-                logger.warning(
-                    f"{warning}, keeping the '{new_name}' value"
-                )
+                self._warn(f"{warning}, keeping the '{new_name}' value")
 
             self.config.remove_option(self.section_name, old_name)
+            has_changes = True
+
+        if has_changes:
             self._write_config_file()
 
     def cleanup_unknown_params(self) -> None:
@@ -150,7 +159,7 @@ class ConfigFile:
             if key not in param_names
         ]
         for key in unknown_keys:
-            logger.warning(f"Unknown config option '{key}', removing it")
+            self._warn(f"Unknown config option '{key}', removing it")
             self.config.remove_option(self.section_name, key)
 
         if unknown_keys:
@@ -181,6 +190,7 @@ class ConfigFile:
         return CliConfig(**config_dict)
 
     def load(self) -> CliConfig:
+        ConfigFile.pending_warnings = []
         self._apply_renamed_params()
         self.cleanup_unknown_params()
         self.add_params_default_to_config()
