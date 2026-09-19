@@ -1,5 +1,6 @@
 import configparser
 import os
+import stat
 import tempfile
 import typing
 from functools import wraps
@@ -62,6 +63,11 @@ class ConfigFile:
                 prefix=f"{Path(self.config_path).name}.",
                 suffix=".tmp",
             )
+            if Path(self.config_path).exists():
+                os.chmod(
+                    temp_path,
+                    stat.S_IMODE(os.stat(self.config_path).st_mode),
+                )
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as config_file:
                     self.config.write(config_file)
@@ -69,6 +75,12 @@ class ConfigFile:
                     os.fsync(config_file.fileno())
                 os.replace(temp_path, self.config_path)
             except BaseException:
+                # close the mkstemp fd if fdopen itself failed; already
+                # closed once the context manager exited
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
                 try:
                     os.unlink(temp_path)
                 except OSError:
