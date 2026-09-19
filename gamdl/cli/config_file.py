@@ -1,4 +1,6 @@
 import configparser
+import os
+import tempfile
 import typing
 from functools import wraps
 from pathlib import Path
@@ -45,9 +47,33 @@ class ConfigFile:
             self.config.add_section(self.section_name)
 
     def _write_config_file(self) -> None:
+        if (
+            Path(self.config_path).exists()
+            and not os.access(self.config_path, os.W_OK)
+        ):
+            self._warn(
+                f"Could not write config file '{self.config_path}': "
+                "file is not writable"
+            )
+            return
         try:
-            with open(self.config_path, "w", encoding="utf-8") as config_file:
-                self.config.write(config_file)
+            fd, temp_path = tempfile.mkstemp(
+                dir=Path(self.config_path).parent,
+                prefix=f"{Path(self.config_path).name}.",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as config_file:
+                    self.config.write(config_file)
+                    config_file.flush()
+                    os.fsync(config_file.fileno())
+                os.replace(temp_path, self.config_path)
+            except BaseException:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                raise
         except OSError as e:
             self._warn(f"Could not write config file '{self.config_path}': {e}")
 

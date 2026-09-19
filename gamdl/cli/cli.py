@@ -10,6 +10,7 @@ import httpx
 import structlog
 from construct import ConstructError
 from dataclass_click import dataclass_click
+from google.protobuf.message import DecodeError
 
 from .. import __version__
 from ..api import AppleMusicApi
@@ -48,11 +49,13 @@ from .utils import CustomOutputWriter, custom_structlog_formatter, prompt_path
 logger = structlog.get_logger(__name__)
 
 # Errors that are expected during setup: API/network failures, unreadable or
-# malformed cookies/.wvd files (pywidevine's Device.load raises ValueError for
-# invalid device data), and unusable SQLite databases. Anything else is a bug
-# and still gets a full traceback.
+# malformed cookies/.wvd files (pywidevine raises ConstructError for a bad WVD
+# header, DecodeError for malformed protobuf payloads, and ValueError for
+# empty client IDs or private keys), and unusable SQLite databases. Anything
+# else is a bug and still gets a full traceback.
 EXPECTED_SETUP_ERRORS = (
     ConstructError,
+    DecodeError,
     GamdlApiResponseError,
     httpx.HTTPError,
     OSError,
