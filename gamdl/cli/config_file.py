@@ -1,4 +1,7 @@
 import configparser
+import os
+import stat
+import tempfile
 import typing
 from functools import wraps
 from pathlib import Path
@@ -10,8 +13,18 @@ from .cli_config import CliConfig
 from .constants import EXCLUDED_CONFIG_FILE_PARAMS
 from .utils import Csv
 
+# Old config key -> renamed key. The value under the old key is applied once
+# and written back under the new key, with a warning to update the config.
+RENAMED_PARAMS = {
+    "song_codec_piority": "song_codec_priority",
+}
+
 
 class ConfigFile:
+    # Warnings collected while loading the config file, emitted by the CLI
+    # once logging is configured.
+    pending_warnings: list[str] = []
+
     def __init__(
         self,
         config_path: str,
@@ -35,8 +48,49 @@ class ConfigFile:
             self.config.add_section(self.section_name)
 
     def _write_config_file(self) -> None:
-        with open(self.config_path, "w", encoding="utf-8") as config_file:
-            self.config.write(config_file)
+        if (
+            Path(self.config_path).exists()
+            and not os.access(self.config_path, os.W_OK)
+        ):
+            self._warn(
+                f"Could not write config file '{self.config_path}': "
+                "file is not writable"
+            )
+            return
+        try:
+            fd, temp_path = tempfile.mkstemp(
+                dir=Path(self.config_path).parent,
+                prefix=f"{Path(self.config_path).name}.",
+                suffix=".tmp",
+            )
+            if Path(self.config_path).exists():
+                os.chmod(
+                    temp_path,
+                    stat.S_IMODE(os.stat(self.config_path).st_mode),
+                )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as config_file:
+                    self.config.write(config_file)
+                    config_file.flush()
+                    os.fsync(config_file.fileno())
+                os.replace(temp_path, self.config_path)
+            except BaseException:
+                # close the mkstemp fd if fdopen itself failed; already
+                # closed once the context manager exited
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                raise
+        except OSError as e:
+            self._warn(f"Could not write config file '{self.config_path}': {e}")
+
+    def _warn(self, message: str) -> None:
+        ConfigFile.pending_warnings.append(message)
 
     def _serialize_param_default(self, param: click.Parameter) -> str:
         if param.default is None:
@@ -111,16 +165,42 @@ class ConfigFile:
         if has_changes:
             self._write_config_file()
 
-    def cleanup_unknown_params(self) -> None:
-        param_names = {info.name for info in self.click_context.command.params}
+    def _apply_renamed_params(self) -> None:
         has_changes = False
+        for old_name, new_name in RENAMED_PARAMS.items():
+            if not self.config.has_option(self.section_name, old_name):
+                continue
 
-        for key in list(self.config[self.section_name].keys()):
-            if key not in param_names:
-                self.config.remove_option(self.section_name, key)
-                has_changes = True
+            warning = (
+                f"Config option '{old_name}' was renamed to '{new_name}', "
+                "update your config file"
+            )
+            if not self.config.has_option(self.section_name, new_name):
+                value = self.config[self.section_name].get(old_name)
+                self.config.set(self.section_name, new_name, value)
+                self._warn(warning)
+            else:
+                self._warn(f"{warning}, keeping the '{new_name}' value")
+
+            self.config.remove_option(self.section_name, old_name)
+            has_changes = True
 
         if has_changes:
+            self._write_config_file()
+
+    def cleanup_unknown_params(self) -> None:
+        param_names = {info.name for info in self.click_context.command.params}
+
+        unknown_keys = [
+            key
+            for key in self.config[self.section_name].keys()
+            if key not in param_names
+        ]
+        for key in unknown_keys:
+            self._warn(f"Unknown config option '{key}', removing it")
+            self.config.remove_option(self.section_name, key)
+
+        if unknown_keys:
             self._write_config_file()
 
     def update_params_from_config(self) -> None:
@@ -148,6 +228,8 @@ class ConfigFile:
         return CliConfig(**config_dict)
 
     def load(self) -> CliConfig:
+        ConfigFile.pending_warnings = []
+        self._apply_renamed_params()
         self.cleanup_unknown_params()
         self.add_params_default_to_config()
         self.update_params_from_config()
